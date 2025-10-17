@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alles Liebe zum Geburtstag!</title>
+    <!-- Lade Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Konfiguriere Tailwind für das 'Inter' Font und benutzerdefinierte Farben -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        'primary-pink': '#f783ac', // Ein festliches Rosa
+                        'primary-purple': '#a970ff', // Ein lebendiges Lila
+                        'bg-light': '#fffaf0', // Cremiges Hintergrundweiß
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Custom CSS für die Konfetti-Animation */
+        @keyframes confetti-fall {
+            0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(720deg); opacity: 0.5; }
+        }
+
+        .confetti {
+            position: absolute;
+            width: 10px;
+            height: 15px;
+            background-color: var(--color);
+            border-radius: 2px;
+            animation: confetti-fall 10s linear infinite;
+            pointer-events: none; /* Wichtig, damit Klicks durchgehen */
+            filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.1));
+        }
+
+        /* Styling für den Canvas-Container */
+        #game-container {
+            width: 90vw;
+            height: 70vh;
+            max-width: 450px; /* Handy-Breite */
+            max-height: 700px;
+            margin: 0 auto;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        #game-canvas {
+            display: block;
+            background-color: #ffe4e6; /* Hellrosa für den Spielhintergrund */
+            cursor: none; /* Versteckt den normalen Cursor */
+        }
+
+        /* Maus-/Touch-Feedback für Button */
+        .btn-fancy {
+            transition: all 0.2s ease;
+        }
+        .btn-fancy:hover, .btn-fancy:active {
+            transform: scale(1.05);
+            box-shadow: 0 8px 15px rgba(169, 112, 255, 0.5);
+        }
+    </style>
+</head>
+<body class="bg-bg-light font-sans min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- Konfetti-Container für die Landing Page (wird später in JS befüllt) -->
+    <div id="confetti-container" class="fixed inset-0 z-0 pointer-events-none"></div>
+
+    <div id="app-container" class="w-full max-w-lg bg-white rounded-3xl shadow-2xl p-6 md:p-10 z-10 transition-all duration-500 transform scale-100">
+        
+        <!-- Screen 1: Landing Page / Intro -->
+        <div id="landing-screen" class="text-center">
+            <h1 class="text-5xl md:text-6xl font-extrabold text-primary-pink mb-4 animate-bounce">
+                Happy Birthday! 🥳
+            </h1>
+            <p class="text-xl md:text-2xl text-gray-700 mb-8">
+                Liebe Fiona, bevor du Dein Geschenk öffnest, musst Du einen kleinen Test bestehen...
+            </p>
+            <p class="text-lg text-primary-purple font-semibold mb-8 border-l-4 border-primary-pink pl-4 py-2 bg-pink-50 rounded-lg">
+                Zeig, was Du kannst, um Dir Dein Geschenk zu verdienen!
+            </p>
+            <button id="start-game-btn" class="btn-fancy w-full py-4 text-white text-2xl font-bold rounded-xl bg-primary-purple hover:bg-primary-pink shadow-lg shadow-primary-purple/50">
+                Spiel starten!
+            </button>
+        </div>
+
+        <!-- Screen 2: Game -->
+        <div id="game-screen" class="hidden">
+            <h2 class="text-3xl font-bold text-center text-primary-purple mb-4">Geschenkefänger!</h2>
+            <div id="score-display" class="text-center text-xl font-medium text-gray-700 mb-4">
+                Punkte: 0 / 20
+            </div>
+            
+            <div id="game-container">
+                <canvas id="game-canvas"></canvas>
+            </div>
+
+            <div class="text-center mt-6">
+                <button id="restart-game-btn" class="btn-fancy hidden py-3 px-6 text-white text-lg font-bold rounded-xl bg-primary-pink hover:bg-red-600 shadow-lg shadow-primary-pink/50">
+                    Neustart 🔄
+                </button>
+            </div>
+            
+            <!-- Message Box für Statusmeldungen (Gewonnen/Verloren) -->
+            <div id="message-box" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden p-4">
+                <div class="bg-white rounded-2xl p-8 text-center shadow-2xl transform scale-100 transition-all duration-300">
+                    <h3 id="message-title" class="text-3xl font-extrabold text-primary-purple mb-4"></h3>
+                    <p id="message-text" class="text-lg text-gray-700 mb-6"></p>
+                    <button id="message-action-btn" class="btn-fancy py-3 px-8 text-white text-xl font-bold rounded-xl bg-primary-purple hover:bg-primary-pink"></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Screen 3: Gift Reveal -->
+        <div id="gift-screen" class="hidden text-center p-4">
+            <h2 class="text-4xl font-extrabold text-primary-pink mb-6 animate-pulse">
+                Glückwunsch! Du hast gewonnen! 🎉
+            </h2>
+            <div class="bg-yellow-50 border-4 border-yellow-400 p-6 rounded-2xl shadow-xl">
+                <h3 class="text-2xl font-bold text-yellow-800 mb-4">Dein Preis: Ein ultimativer Gutschein!</h3>
+                <!-- HIER KANNST DU DEN TEXT ÄNDERN! -->
+                <p id="voucher-text" class="text-xl text-gray-800 leading-relaxed italic">
+                    Es geht für Dich und Deine Familie nach Leer! Viel Spaß dabei! Quatsch die Worte waren nur Schall & Rauch. Es geht für Dich mit Deinen drei Geschwistern auf einen Tag nach D'Dorf.
+                    Essen, Trinken, Shoppen - Alles im Rahmen, aber von Herzen!
+                    Wir haben Dich sehr lieb - Deine Geschwister Eric, Gerrit und Selina!
+                </p>
+                <!-- ENDE DES ANPASSBAREN BEREICHS -->
+            </div>
+            
+            <p class="text-lg text-gray-600 mt-6">
+                Alles Liebe zum Geburtstag von Deinen Brüdern! ❤️
+            </p>
+        </div>
+
+    </div>
+
+    <script type="text/javascript">
+        // Globale Variablen
+        let appState = 'landing';
+        const WIN_SCORE = 20;
+
+        // DOM-Elemente
+        const landingScreen = document.getElementById('landing-screen');
+        const gameScreen = document.getElementById('game-screen');
+        const giftScreen = document.getElementById('gift-screen');
+        const startGameBtn = document.getElementById('start-game-btn');
+        const restartGameBtn = document.getElementById('restart-game-btn');
+        const scoreDisplay = document.getElementById('score-display');
+        const confettiContainer = document.getElementById('confetti-container');
+        
+        // Modal / Message Box Elemente
+        const messageBox = document.getElementById('message-box');
+        const messageTitle = document.getElementById('message-title');
+        const messageText = document.getElementById('message-text');
+        const messageActionBtn = document.getElementById('message-action-btn');
+
+        // Canvas und Spiel-Setup
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
+        const gameContainer = document.getElementById('game-container');
+        
+        let score = 0;
+        let isGameRunning = false;
+        // Fängerbreite von 80 auf 100 erhöht
+        let player = { x: 0, y: 0, width: 100, height: 20, color: '#a970ff' }; // Lila Fänger
+        let gifts = [];
+        let dropInterval = 1000; // Startintervall für Geschenke (in ms)
+        let lastDropTime = 0;
+        let animationFrameId;
+        let mouseX = 0; // Für Maus-/Touch-Position
+
+        // --- Konfetti Animation (Landing Page) ---
+        function createConfetti() {
+            const colors = ['#f783ac', '#a970ff', '#ffd700', '#00bcd4'];
+            for (let i = 0; i < 30; i++) {
+                const c = document.createElement('div');
+                c.className = 'confetti';
+                c.style.setProperty('--color', colors[Math.floor(Math.random() * colors.length)]);
+                c.style.left = `${Math.random() * 100}vw`;
+                c.style.animationDelay = `-${Math.random() * 10}s`;
+                c.style.transform = `scale(${0.5 + Math.random() * 1})`;
+                c.style.opacity = `${0.5 + Math.random() * 0.5}`;
+                confettiContainer.appendChild(c);
+            }
+        }
+
+        function toggleConfetti(show) {
+            confettiContainer.style.display = show ? 'block' : 'none';
+        }
+
+
+        // --- Spiel Logik (Gift Catcher) ---
+
+        function resizeCanvas() {
+            // Passt die Canvas-Größe an den Container an (für Responsive Design)
+            canvas.width = gameContainer.clientWidth;
+            canvas.height = gameContainer.clientHeight;
+            // Spieler-Position aktualisieren
+            player.x = (canvas.width / 2) - (player.width / 2);
+            player.y = canvas.height - 40;
+        }
+
+        function drawPlayer() {
+            ctx.fillStyle = player.color;
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+            ctx.shadowBlur = 10;
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+            ctx.shadowBlur = 0;
+        }
+
+        function drawGift(gift) {
+            // Die Größe wird als Font-Größe verwendet
+            ctx.font = `${gift.size}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(gift.emoji, gift.x, gift.y);
+        }
+
+        function spawnGift() {
+            const emoji = ['🎁', '🎂', '🎈', '🌟'];
+            // Geschenkgröße von 30 auf 45 erhöht
+            const size = 45; 
+            const x = Math.random() * (canvas.width - size) + size / 2;
+            const y = -size; // Start oberhalb des Canvas
+            const speed = 2 + (score / 10) * 0.5; // Geschwindigkeit steigt leicht mit dem Score
+            
+            gifts.push({
+                x: x,
+                y: y,
+                width: size,
+                height: size,
+                speed: speed,
+                emoji: emoji[Math.floor(Math.random() * emoji.length)],
+                isCaught: false
+            });
+            // Drop-Intervall verringern, um das Spiel schneller zu machen
+            dropInterval = Math.max(500, 1000 - score * 20); 
+        }
+
+        function updateGame() {
+            if (!isGameRunning) return;
+
+            // 1. Clear Canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#ffe4e6';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 2. Update Gifts
+            const newGifts = [];
+            let missed = false;
+
+            gifts.forEach(gift => {
+                gift.y += gift.speed;
+
+                // Kollisionsprüfung (Fänger fängt das Geschenk)
+                // Die Hitbox des Geschenks basiert auf seiner Größe
+                if (
+                    gift.y + gift.height * 0.5 > player.y &&     // Unterkante Geschenk über Oberkante Fänger (mittig prüfen)
+                    gift.y - gift.height * 0.5 < player.y + player.height && // Oberkante Geschenk über Unterkante Fänger
+                    gift.x + gift.width * 0.3 > player.x &&      // Rechte Seite Geschenk innerhalb Fänger
+                    gift.x - gift.width * 0.3 < player.x + player.width // Linke Seite Geschenk innerhalb Fänger
+                ) {
+                    if (!gift.isCaught) {
+                        score++;
+                        scoreDisplay.textContent = `Punkte: ${score} / ${WIN_SCORE}`;
+                        gift.isCaught = true;
+                        // Kurze Animation für den Fänger
+                        player.color = '#f783ac';
+                        setTimeout(() => player.color = '#a970ff', 100);
+                        return; // Nicht zur neuen Liste hinzufügen (entfernt)
+                    }
+                }
+
+                // Geschenk verpasst (fällt aus dem Canvas)
+                if (gift.y - (gift.height / 2) > canvas.height) {
+                    missed = true;
+                    return; // Nicht zur neuen Liste hinzufügen (entfernt)
+                }
+
+                if (!gift.isCaught) {
+                    newGifts.push(gift);
+                }
+            });
+
+            gifts = newGifts;
+
+            // 3. Draw Elements
+            drawPlayer();
+            gifts.forEach(drawGift);
+
+            // 4. Game Logic Checks
+            if (missed) {
+                gameOver(false); // Verloren
+                return;
+            }
+
+            if (score >= WIN_SCORE) {
+                gameOver(true); // Gewonnen
+                return;
+            }
+
+            // 5. Spawn new gift
+            const now = performance.now();
+            if (now - lastDropTime > dropInterval) {
+                spawnGift();
+                lastDropTime = now;
+            }
+
+            // Loop
+            animationFrameId = requestAnimationFrame(updateGame);
+        }
+
+        function handlePointerMove(event) {
+            let clientX;
+            if (event.touches) {
+                // Touch-Ereignis
+                clientX = event.touches[0].clientX;
+            } else {
+                // Maus-Ereignis
+                clientX = event.clientX;
+            }
+            
+            // Konvertiere die globale Bildschirmposition in eine lokale Canvas-Position
+            const rect = canvas.getBoundingClientRect();
+            mouseX = clientX - rect.left;
+
+            // Aktualisiere die Spielerposition, zentriert auf den Mauszeiger/Touch-Punkt
+            let newX = mouseX - player.width / 2;
+
+            // Spieler innerhalb der Canvas-Grenzen halten
+            if (newX < 0) {
+                newX = 0;
+            } else if (newX + player.width > canvas.width) {
+                newX = canvas.width - player.width;
+            }
+
+            player.x = newX;
+        }
+
+        function startGame() {
+            score = 0;
+            gifts = [];
+            dropInterval = 1000;
+            lastDropTime = 0;
+            isGameRunning = true;
+            scoreDisplay.textContent = `Punkte: ${score} / ${WIN_SCORE}`;
+            restartGameBtn.classList.add('hidden');
+            
+            // Stellt sicher, dass das Canvas richtig skaliert ist
+            resizeCanvas();
+            
+            // Startet den Game Loop
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            updateGame();
+        }
+
+        function gameOver(win) {
+            isGameRunning = false;
+            if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            
+            if (win) {
+                showModal('Gewonnen!', `Glückwunsch! Du hast ${WIN_SCORE} Geschenke gefangen und den Test bestanden!`, 'Geschenk öffnen!', transitionToGift);
+            } else {
+                showModal('Verloren! 🥲', `Das war knapp! Du hast es leider nicht geschafft, alle 20 Geschenke zu fangen.`, 'Nochmal versuchen', startGame);
+            }
+        }
+        
+        // --- UI Steuerung ---
+        
+        function transitionToScreen(targetState) {
+            appState = targetState;
+            
+            // Blendet alle Bildschirme aus
+            landingScreen.classList.add('hidden');
+            gameScreen.classList.add('hidden');
+            giftScreen.classList.add('hidden');
+            toggleConfetti(false);
+            
+            // Blendet den Zielbildschirm ein
+            if (targetState === 'landing') {
+                landingScreen.classList.remove('hidden');
+                toggleConfetti(true);
+            } else if (targetState === 'game') {
+                gameScreen.classList.remove('hidden');
+            } else if (targetState === 'gift') {
+                giftScreen.classList.remove('hidden');
+                toggleConfetti(true); // Erneut Konfetti für die Belohnung
+            }
+        }
+
+        function showModal(title, text, buttonText, action) {
+            messageTitle.textContent = title;
+            messageText.textContent = text;
+            messageActionBtn.textContent = buttonText;
+            
+            // Korrigierte Logik: Entfernt alle alten Listener und setzt die neue Funktion direkt
+            // Das ist robuster als das Klonen des Elements.
+            messageActionBtn.onclick = () => {
+                hideModal();
+                action();
+            };
+
+            messageBox.classList.remove('hidden');
+        }
+
+        function hideModal() {
+            messageBox.classList.add('hidden');
+        }
+        
+        function transitionToGame() {
+             transitionToScreen('game');
+             startGame();
+        }
+        
+        function transitionToGift() {
+             transitionToScreen('gift');
+        }
+
+        // --- Event Listener und Initialisierung ---
+
+        window.onload = () => {
+            // Initialisiere die Canvas-Größe und Konfetti
+            resizeCanvas();
+            createConfetti();
+            transitionToScreen('landing'); // Startet auf der Landing Page
+
+            // Listener für das Spiel
+            canvas.addEventListener('mousemove', handlePointerMove);
+            canvas.addEventListener('touchmove', (e) => {
+                e.preventDefault(); // Verhindert das Scrollen auf dem Handy
+                handlePointerMove(e);
+            }, { passive: false });
+            
+            // Allgemeine Button-Listener
+            startGameBtn.addEventListener('click', transitionToGame);
+            restartGameBtn.addEventListener('click', startGame);
+        };
+        
+        // Stellt sicher, dass das Canvas responsive bleibt
+        window.addEventListener('resize', () => {
+            if (appState === 'game' || appState === 'won') {
+                resizeCanvas();
+            }
+        });
+
+    </script>
+
+</body>
+</html>
